@@ -1,5 +1,7 @@
 import cv2 as cv
 import numpy as np
+import pytesseract
+pytesseract.pytesseract.tesseract_cmd = 'C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe'
 
 # preprocess the image
 
@@ -10,7 +12,7 @@ blurred = cv.GaussianBlur(gray, (5, 5), 0)
 
 thresh = cv.adaptiveThreshold(blurred, 255, 1, 1, 11, 2)
 
-resized = cv.resize(thresh, (270, 270), interpolation = cv.INTER_AREA)
+resized = cv.resize(thresh, (300,300), interpolation = cv.INTER_AREA)
 
 # contour detection
 
@@ -47,9 +49,10 @@ output_coords = np.float32([[0,0], [299,0], [299,299], [0,299]])
 
 matrix = cv.getPerspectiveTransform(input_coords, output_coords)
 
-transformed_img = cv.warpPerspective(resized, matrix, (270,270))
+transformed_img = cv.warpPerspective(resized, matrix, (300,300))
+transformed_img_resized = cv.resize(transformed_img, (270, 270), interpolation = cv.INTER_AREA)
 
-# cv.imshow('Transformed Image', transformed_img)
+# cv.imshow('Transformed Image', transformed_img_resized)
 # cv.waitKey(0)
 # cv.destroyAllWindows()
 
@@ -64,11 +67,28 @@ def split_image(img):
             boxes.append(box)
     return boxes
 
-boxes = split_image(transformed_img)
-
-print(len(boxes))
+boxes = split_image(transformed_img_resized)
 
 # number recognition
+
+def read_number(cell):
+    cell = cv.resize(cell, (28, 28))
+    _, cell = cv.threshold(cell, 128, 255, cv.THRESH_BINARY_INV)
+    cell = cv.dilate(cell, (3,3), iterations = 1)
+    number = pytesseract.image_to_string(cell, config='--psm 10 -c tessedit_char_whitelist=123456789')
+    return number
+
+sudoku_grid = np.zeros((9, 9))
+
+for i in range(9):
+    for j in range(9):
+        cell = boxes[i*9 + j]
+        number = read_number(cell)
+        number = number.replace("\n", "")
+        if number.isdigit():
+            sudoku_grid[i, j] = int(number)
+
+print(sudoku_grid)
 
 # sudoku solving
 
