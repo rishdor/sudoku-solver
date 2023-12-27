@@ -1,36 +1,37 @@
-import cv2 as cv
+import cv2
 import numpy as np
-import pytesseract
-pytesseract.pytesseract.tesseract_cmd = 'C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe'
+import tensorflow as tf
+model = tf.keras.models.load_model('model.h5')
 
 # preprocess the image
 
-img = cv.imread('img\sudoku5.png')
+def preprocess_image(img):
+    gray=cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray=cv2.GaussianBlur(gray, (5, 5), 0)
+    thresh=cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 9, 2)
+    resized = cv2.resize(thresh, (300,300), interpolation = cv2.INTER_AREA)
+    
+    return resized
 
-gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-blurred = cv.GaussianBlur(gray, (5, 5), 0)
-
-thresh = cv.adaptiveThreshold(blurred, 255, 1, 1, 11, 2)
-
-resized = cv.resize(thresh, (300,300), interpolation = cv.INTER_AREA)
+img = cv2.imread('img\sudoku7.jpg')
+preprocessed_img = preprocess_image(img)
 
 # contour detection
 
-contours, _ = cv.findContours(resized, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-
-contours = sorted(contours, key=cv.contourArea, reverse=True)
+contours, _ = cv2.findContours(preprocessed_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+contours = sorted(contours, key=cv2.contourArea, reverse=True)
 sudoku_contour = contours[0]
 
-resized = cv.cvtColor(resized, cv.COLOR_GRAY2BGR)
-cv.polylines(resized, [sudoku_contour], True, (0,255,0), 2)
-# cv.imshow('Resized with contour', resized)
-# cv.waitKey(0)
-# cv.destroyAllWindows()
+# preprocessed_img = cv2.cvtColor(preprocessed_img, cv2.COLOR_GRAY2BGR)
+# cv2.polylines(preprocessed_img, [sudoku_contour], True, (0,255,0), 2)
+# cv2.imshow('Image with the contour', preprocessed_img)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
 
 # perspective transformation
 
-epsilon = 0.01 * cv.arcLength(sudoku_contour, True)
-approx = cv.approxPolyDP(sudoku_contour, epsilon, True)
+epsilon = 0.01 * cv2.arcLength(sudoku_contour, True)
+approx = cv2.approxPolyDP(sudoku_contour, epsilon, True)
 
 corners = approx.ravel().reshape(-1, 2)
 corners = sorted(corners, key=lambda x: x[1])
@@ -39,7 +40,6 @@ left = corners[:2]
 right = corners[2:]
 
 left = sorted(left, key=lambda x: x[0])
-
 right = sorted(right, key=lambda x: x[0], reverse=True)
 
 ordered_corners = np.float32(left + right)
@@ -47,49 +47,46 @@ ordered_corners = np.float32(left + right)
 input_coords = np.float32(ordered_corners)
 output_coords = np.float32([[0,0], [299,0], [299,299], [0,299]])
 
-matrix = cv.getPerspectiveTransform(input_coords, output_coords)
+matrix = cv2.getPerspectiveTransform(input_coords, output_coords)
+transformed_img = cv2.warpPerspective(preprocessed_img, matrix, (300,300))
+sudoku_grid = cv2.resize(transformed_img, (270, 270), interpolation = cv2.INTER_AREA)
 
-transformed_img = cv.warpPerspective(resized, matrix, (300,300))
-transformed_img_resized = cv.resize(transformed_img, (270, 270), interpolation = cv.INTER_AREA)
-
-# cv.imshow('Transformed Image', transformed_img_resized)
-# cv.waitKey(0)
-# cv.destroyAllWindows()
+# cv2.imshow('Transformed Image', sudoku_grid)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
 
 # cell segmentation
 
 def split_image(img):
     rows = np.vsplit(img, 9)
-    boxes = []
+    cells = []
     for r in rows:
         cols = np.hsplit(r, 9)
-        for box in cols:
-            boxes.append(box)
-    return boxes
+        for cell in cols:
+            cells.append(cell)
+    return cells
 
-boxes = split_image(transformed_img_resized)
+cells = split_image(sudoku_grid)
 
 # number recognition
 
-def read_number(cell):
-    cell = cv.resize(cell, (28, 28))
-    _, cell = cv.threshold(cell, 128, 255, cv.THRESH_BINARY_INV)
-    cell = cv.dilate(cell, (3,3), iterations = 1)
-    number = pytesseract.image_to_string(cell, config='--psm 10 -c tessedit_char_whitelist=123456789')
-    return number
+def predict_number(cell):
+    cell = cv2.resize(cell, (28, 28))
+    cell = cv2.cvtColor(cell, cv2.COLOR_GRAY2RGB)
+    cell = cell.reshape(1, 28, 28, 3)
+    
+    predictions = model.predict(cell)
+    predicted_digit = np.argmax(predictions[0])
 
-sudoku_grid = np.zeros((9, 9))
+    return predicted_digit
 
-for i in range(9):
-    for j in range(9):
-        cell = boxes[i*9 + j]
-        number = read_number(cell)
-        number = number.replace("\n", "")
-        if number.isdigit():
-            sudoku_grid[i, j] = int(number)
+def read_sudoku(cells):
+    sudoku = []
+    for cell in cells:
+        digit = predict_number(cell)
+        sudoku.append(digit)
+    sudoku = np.array(sudoku).reshape(9, 9)
+    return sudoku
 
-print(sudoku_grid)
-
-# sudoku solving
-
-# overlay the solution
+sudoku = read_sudoku(cells)
+print(sudoku)

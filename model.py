@@ -24,7 +24,7 @@ img_width = 28
 train_ds = tf.keras.preprocessing.image_dataset_from_directory(
     'assets',
     subset = 'training',
-    validation_split = 0.2,
+    validation_split = 0.1,
     seed=123,
     image_size=(img_height, img_width),
     batch_size=batch_size)
@@ -32,7 +32,7 @@ train_ds = tf.keras.preprocessing.image_dataset_from_directory(
 val_ds = tf.keras.preprocessing.image_dataset_from_directory(
     'assets',
     subset = 'validation',
-    validation_split = 0.2,
+    validation_split = 0.1,
     seed=123,
     image_size=(img_height, img_width),
     batch_size=batch_size)
@@ -45,14 +45,16 @@ val_ds = val_ds.cache().prefetch(buffer_size=tf.data.AUTOTUNE)
 
 model = Sequential([
     layers.Rescaling(1./255, input_shape=(img_height, img_width, 3)),
-    layers.Conv2D(16, 3, padding='same', activation='relu'),
-    layers.MaxPooling2D(),
     layers.Conv2D(32, 3, padding='same', activation='relu'),
     layers.MaxPooling2D(),
     layers.Conv2D(64, 3, padding='same', activation='relu'),
     layers.MaxPooling2D(),
+    layers.Conv2D(128, 3, padding='same', activation='relu'),
+    layers.MaxPooling2D(),
+    layers.Conv2D(128, 3, padding='same', activation='relu'),
+    layers.MaxPooling2D(),
     layers.Flatten(),
-    layers.Dense(128, activation='relu'),
+    layers.Dense(256, activation='relu'),
     layers.Dense(class_count)
 ])
 
@@ -104,4 +106,4 @@ def evaluate_model(val_ds,model):
 
 evaluate_model(val_ds,model)
 
-model.save('model.keras')
+model.save('model.h5')
