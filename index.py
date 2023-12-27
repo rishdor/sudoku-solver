@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import tensorflow as tf
+import sudoku_solving as ss
 model = tf.keras.models.load_model('model.h5')
 
 # preprocess the image
@@ -13,7 +14,7 @@ def preprocess_image(img):
     
     return resized
 
-img = cv2.imread('img\sudoku7.jpg')
+img = cv2.imread('img\sudoku4.png')
 preprocessed_img = preprocess_image(img)
 
 # contour detection
@@ -90,3 +91,11 @@ def read_sudoku(cells):
 
 sudoku = read_sudoku(cells)
 print(sudoku)
+
+# sudoku solving
+
+solution = ss.solve_sudoku(sudoku)
+if solution:
+    print(sudoku)
+else:
+    print('no solution found')
