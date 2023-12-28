@@ -14,7 +14,7 @@ def preprocess_image(img):
     
     return resized
 
-img = cv2.imread('img\sudoku4.png')
+img = cv2.imread('img\sudoku1.png')
 preprocessed_img = preprocess_image(img)
 
 # contour detection
@@ -22,12 +22,6 @@ preprocessed_img = preprocess_image(img)
 contours, _ = cv2.findContours(preprocessed_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 contours = sorted(contours, key=cv2.contourArea, reverse=True)
 sudoku_contour = contours[0]
-
-# preprocessed_img = cv2.cvtColor(preprocessed_img, cv2.COLOR_GRAY2BGR)
-# cv2.polylines(preprocessed_img, [sudoku_contour], True, (0,255,0), 2)
-# cv2.imshow('Image with the contour', preprocessed_img)
-# cv2.waitKey(0)
-# cv2.destroyAllWindows()
 
 # perspective transformation
 
@@ -51,10 +45,6 @@ output_coords = np.float32([[0,0], [299,0], [299,299], [0,299]])
 matrix = cv2.getPerspectiveTransform(input_coords, output_coords)
 transformed_img = cv2.warpPerspective(preprocessed_img, matrix, (300,300))
 sudoku_grid = cv2.resize(transformed_img, (270, 270), interpolation = cv2.INTER_AREA)
-
-# cv2.imshow('Transformed Image', sudoku_grid)
-# cv2.waitKey(0)
-# cv2.destroyAllWindows()
 
 # cell segmentation
 
@@ -92,10 +82,33 @@ def read_sudoku(cells):
 sudoku = read_sudoku(cells)
 print(sudoku)
 
+# overlay the solution
+
+def overlay_solution(img, sudoku):
+    cell_size = img.shape[0] // 9
+    img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    
+    for i in range(9):
+        for j in range(9):
+            if sudoku[i][j] != 0:
+                x = j * cell_size
+                y = i * cell_size
+                number = str(sudoku[i][j])
+                text_size, _ = cv2.getTextSize(number, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                text_x = x + (cell_size - text_size[0]) // 2
+                text_y = y + (cell_size + text_size[1]) // 2
+                cv2.putText(img, number, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
+
+    return img
+
 # sudoku solving
 
 solution = ss.solve_sudoku(sudoku)
 if solution:
-    print(sudoku)
+    solved_img = sudoku_grid.copy()
+    solved_img = overlay_solution(solved_img, sudoku)
+    cv2.imshow('Sudoku solution', solved_img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 else:
     print('no solution found')
